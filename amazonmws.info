@@ -1,0 +1,9 @@
+name = Amazon MWS Integration
+description = Custom code to integrate with Amazon MWS. Other requirements: CURL.
+core = 7.x
+version = "7.x-1.1"
+dependencies[] = rules
+dependencies[] = uc_stock
+dependencies[] = uc_cart
+dependencies[] = uc_order
+configure = admin/config/amazonmws

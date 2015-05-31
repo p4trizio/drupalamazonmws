@@ -1,0 +1,115 @@
+<?php
+
+/**
+*AmazonMWS Integration module installation file
+*/
+
+/**
+ * Implements hook_schema().
+ */
+function amazonmws_schema() {
+  $schema['amazonmws_stocks_pending_update'] = array(
+    'description' => 'Sku whose stock has not been updated to Amazon.',
+    'fields' => array(
+      'sku' => array(
+        'description' => 'The sku pending stock update',
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length'=>64,        
+      ),
+      // more columns can be added here in the future
+    ),
+    'primary key' => array('sku'),
+  );
+  $schema['amazonmws_prices_pending_update'] = array(
+    'description' => 'Sku whose price has not been updated to Amazon',
+    'fields' => array(
+      'sku' => array(
+        'description' => 'The sku pending price update',
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length'=>64,        
+      ),
+      // more columns can be added here in the future
+    ),
+    'primary key' => array('sku'),
+  );
+  $schema['amazonmws_ordersfromamazon'] = array(
+    'description' => 'Item orders received from amazon are posted here. ',
+    'fields' => array(
+      'updateid' => array(
+        'description' => 'Update identifier the primary key of the table',
+        'type' => 'serial',
+        'not null' => TRUE,
+        'size'=>'big',
+	'unsigned'=>TRUE,       
+      ),
+        'orderid' => array(
+        'description' => 'Order identifier from amazon',
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length'=>64,        
+      ),
+      'sku' => array(
+        'description' => 'The sku of the item.',
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length'=>64, 
+      ),
+      'qty' => array(
+        'description' => 'The qty of the item.',
+        'type' => 'int',
+        'unsigned' => FALSE,//might process negative orders in the future
+        'not null' => TRUE,
+      ),
+      'datetime' => array(
+        'description' => 'The date the item was ordered.',
+        'mysql_type' => 'datetime',      // The equivalent MySQL data type
+        'pgsql_type' => 'timestamp',    // The equivalent PostgreSQL data type
+        'not null' => FALSE,
+      ),
+      'onsite' => array(
+        'description' => 'The sku pending price update',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => FALSE,      
+      ),
+
+      // more columns can be added here in the future
+    ),
+    'primary key' => array('updateid'),
+  );
+  return $schema;
+}
+
+
+/*
+*Set persistent variables at install
+*/
+function amazonmws_install(){
+	variable_set('amazonmws_sellerid', "TEST");
+	variable_set('amazonmws_marketplaceid', "TEST");
+	variable_set('amazonmws_accesskeyid', "TEST");
+	variable_set('amazonmws_secretkey', "TEST");
+	variable_set('amazonmws_appname', "TEST");
+	variable_set('amazonmws_appversion', "TEST");
+	variable_set('amazonmws_serviceurl',"TEST");
+     	variable_set('amazonmws_serviceurlfeeds',"TEST");
+}
+
+
+/*
+*Delete persistent variables at install
+*/
+function amazonmws_uninstall(){
+        variable_del('amazonmws_sellerid');
+        variable_del('amazonmws_marketplaceid');
+        variable_del('amazonmws_accesskeyid');
+        variable_del('amazonmws_secretkey');
+	variable_del('amazonmws_appname');
+	variable_del('amazonmws_appversion');
+	variable_del('amazonmws_serviceurl',"TEST");
+     	variable_del('amazonmws_serviceurlfeeds',"TEST");
+
+}
+

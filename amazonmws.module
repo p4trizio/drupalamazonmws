@@ -1,0 +1,844 @@
+<?php
+
+/**********************************
+***********************************
+**** RULES EVENTS AND ACTIONS *****
+***********************************
+**********************************/
+
+ /**
+ *Implementation of hook_rules_event_info
+ *for example amazonmws_st_adj => Event - stock of a product is adjusted
+ */
+
+ function amazonmws_rules_event_info() {
+  $items = array(
+    'amazonmws_st_adj' => array(
+      'label' => t('Stock of a product is adjusted.'), 
+      'group' => 'Amazon MWS Integration',
+      'variables' =>
+        array(
+          'sku' => array(
+            'type' => 'text',
+            'label' => t('The SKU whose stock level is being changed.'),
+          ),
+          'stock' => array(
+            'type' => 'integer',
+            'label' => t('The stock level before the adjustment.'),
+          ),
+          'qty' => array(
+            'type' => 'integer',
+            'label' => t('The amount by which the stock level was changed.'),
+          )
+        )
+    ),
+    'amazonmws_st_setted' => array(
+      'label' => t('Stock of a product is set.'), 
+      'group' => 'Amazon MWS Integration',
+      'variables' =>
+        array(
+          'sku' => array(
+            'type' => 'text',
+            'label' => t('The SKU whose stock level is being changed.'),
+          ),
+          'stock' => array(
+            'type' => 'integer',
+            'label' => t('The stock level before the adjustment.'),
+          ),
+          'qty' => array(
+            'type' => 'integer',
+            'label' => t('The amount to which the stock level was set.'),
+          )
+        )
+    ),
+    // you need to invoke this elsewhere, with rules invoke event
+    // integrates beautifully with elysia cron
+    'amazonmws_mws_cron' => array(
+      'label' => t('MWS cron is run'), 
+      'group' => 'Amazon MWS Integration',
+    ),
+    //, more events can be added here - view hook_rules_event_info
+  );
+  return $items;
+}
+
+/**
+ *Implementation of hook_rules_action_info
+ */
+
+ function amazonmws_rules_action_info() {
+  $items = array(
+    'amazonmws_push_sku_price_update' => array(
+      'label' => t('Place sku in list of updated prices.'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'sku' => array(
+                'type' => 'text',
+                'label' => t('The sku in question.'),
+               ),
+            ),
+       'base' => 'amazonmws_PushSkuToPricePending', 
+    ),
+    'amazonmws_push_sku_stock_update' => array(
+      'label' => t('Place sku in list of updated stocks.'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'sku' => array(
+                'type' => 'text',
+                'label' => t('The sku in question.'),
+               ),
+            ),
+       'base' => 'amazonmws_PushSkuToStockPending', 
+    ),
+        'amazonmws_pull_sku_price_update' => array(
+      'label' => t('Remove sku from list of updated prices.'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'sku' => array(
+                'type' => 'text',
+                'label' => t('The sku in question.'),
+               ),
+            ),
+       'base' => 'amazonmws_PullSkuFromPricePending', 
+    ),
+    'amazonmws_pull_sku_stock_update' => array(
+      'label' => t('Remove sku from list of updated stocks.'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'sku' => array(
+                'type' => 'text',
+                'label' => t('The sku in question.'),
+               ),
+            ),
+       'base' => 'amazonmws_PullSkuFromStockPending', 
+    ),
+    'amazonmws_createorders_assignuser' => array(
+      'label' => t('Download recent amazon orders that can later be copied to Ubercart orders.'), 
+      'group' => 'Amazon MWS Integration',
+        //imports and processes orders from amazon, assigns them to pending status first in amazonmws_ordersfromamazon table
+       'base' => 'amazonmws_usetrios_downloadorderupdates', 
+    ),
+    'amazonmws_syncorders_assignuser' => array(
+      'label' => t('Create Drupal orders for available products, from downloaded orders.'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'sku' => array(
+                'type' => 'integer',
+                'label' => t('The user id to be assigned to the orders.'),
+               ),
+            ),
+        // creates an order (assigned to $uid) if ubercart has a matching product
+        //marks the amazon order as processed regardless if there was a product
+       'base' => 'amazonmws_placeordersfromuser', 
+    ),
+    'amazonmws_setstock_nid' => array(
+      'label' => t('Set stock to a quantity, using nid'), 
+      'group' => 'Amazon MWS Integration',
+      'parameter' =>
+            array(
+             'nid' => array(
+                'type' => 'integer',
+                'label' => t('The node id to modify.'),
+               ),
+              'qty' => array(
+                'type' => 'integer',
+                'label' => t('The integer to set it to.'),
+               ),
+            ),
+       'base' => 'amazonmws_setstock_fromnid', 
+    ),
+    'amazonmws_upload_stockupdates' => array(
+      'label' => t('Upload list of stock changes to amazon.'), 
+      'group' => 'Amazon MWS Integration',
+       'base' => 'amazonmws_toamazon_skuqtypairs', 
+    ),
+    'amazonmws_upload_price_updates' => array(
+      'label' => t('Upload list of price changes to amazon.'), 
+      'group' => 'Amazon MWS Integration',
+       'base' => 'amazonmws_toamazon_skupricepairs', 
+    ),
+    'amazonmws_truncate_sku_stock_updates' => array(
+      'label' => t('Clear the list of stocks to upload to amazon.'), 
+      'group' => 'Amazon MWS Integration',
+       'base' => 'amazonmws_truncate_amazonstockspendingupdate', 
+    ),
+    'amazonmws_truncate_sku_price_updates' => array(
+      'label' => t('Clear the list of prices to upload to amazon.'), 
+      'group' => 'Amazon MWS Integration',
+       'base' => 'amazonmws_truncate_amazonpricespendingupdate', 
+    ),
+    //, more actions can be added here - view hook_rules_action_info
+  );
+  return $items;
+}
+
+/**********************************
+***********************************
+***** UBERCART STOCK CHANGED ******
+***********************************
+**********************************/
+
+/*amazonmws_ucstockadjusted REQUIRES CHANGING uc_stock_set in uc_stock.module
+* It needs to trigger amazonmws_ucstockset($sku, $stock, $qty)
+*/
+function amazonmws_ucstockadjusted($sku, $stock, $qty) {
+  $params = array($sku,$stock,$qty);
+  rules_invoke_event_by_args('amazonmws_st_adj', $params);
+}
+
+
+
+/*amazonmws_ucstockset REQUIRES CHANGING uc_stock_set in uc_stock.module
+* It needs to trigger amazonmws_ucstockset($sku, $stock, $qty)
+*uc_stock_edit_form_submit REQUIRES changing in uc_stock.admin.inc
+* It needs to trigger amazonmws_ucstockset($sku, $stock, $qty)
+*/
+
+function amazonmws_ucstockset($sku, $stock, $qty) {
+  $params = array($sku,$stock,$qty);
+  rules_invoke_event_by_args('amazonmws_st_setted', $params);
+}
+
+/**
+* SOME FUNCTIONS AFTER THIS POINT USE THE AMAZON MWS LIBRARY. 
+* RESPECTIVE LIBRARIES HAVE MORE POSSIBLE IMPLEMENTATIONS
+*/
+
+/**********************************
+***********************************
+***** LOAD AMAZON NEW ORDERS ******
+***********************************
+**********************************/
+
+
+//returns array with order ids from the last 3 days
+function amazonmws_amazon_orderids_last3days(){
+    //load constants, classes, and functions
+    module_load_include('inc', 'amazonmws', 'amazonmwsphplib/src/MarketplaceWebServiceOrders/Implementations/config');
+
+    //prepare request, receive response
+    $serviceUrl=variable_get("amazonmws_serviceurl");
+    $serviceUrl=$serviceUrl."/Orders/2013-09-01";
+    $config = array (
+        'ServiceURL' => $serviceUrl,
+        'ProxyHost' => null,
+        'ProxyPort' => -1,
+        'ProxyUsername' => null,
+        'ProxyPassword' => null,
+        'MaxErrorRetry' => 3,
+        );
+
+    $service = new MarketplaceWebServiceOrders_Client(
+        AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY,
+        APPLICATION_NAME,
+        APPLICATION_VERSION,
+        $config);
+    $request = new MarketplaceWebServiceOrders_Model_ListOrdersRequest();
+    $request->setSellerId(MERCHANT_ID);
+    $request->setCreatedAfter(date(DATE_FORMAT,strtotime("-3 days")));
+    $request->setMarketplaceId(MARKETPLACE_ID);
+    $response = $service->ListOrders($request);
+
+	//use the recommended xml parsing to receive a well formed response
+        $dom = new DOMDocument();
+        $dom->loadXML($response->toXML());
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+	$xmlstring=$dom->saveXML();
+	$xml = simplexml_load_string($xmlstring);
+	//do json encoding and get an array (not an object) in the expected output format
+	$json = json_encode($xml);
+	$orderarray = json_decode($json,TRUE);
+	$returnarray = array();
+    if(isset($orderarray["ListOrdersResult"]["Orders"]["Order"][0])){
+            foreach($orderarray["ListOrdersResult"]["Orders"]["Order"] as $order){
+                $returnarray[] = $order["AmazonOrderId"];
+                }
+            }
+    else{
+        $returnarray[]=$orderarray["ListOrdersResult"]["Orders"]["Order"]["AmazonOrderId"];
+        }
+return $returnarray;
+}
+
+//checks the amazonmws_ordersfromamazon table to see if the orderids have been registered, returns those that are not in the table
+function amazonmws_amazon_orderids_todownload($allorders){
+	//use ($allorders=amazonmws_amazon_orderids_last3days()) to get a list of all recentorders
+	$result = db_query('SELECT a.orderid FROM {amazonmws_ordersfromamazon} a 
+				WHERE a.orderid IN (:oids)', array(':oids' => $allorders));
+	$ordersdownloaded=array();		
+		foreach ($result as $record) {
+   				$ordersdownloaded[]=$record->orderid;
+  				}
+	$todownload=$allorders;
+	$downloaded=$ordersdownloaded;
+		foreach ($downloaded as $i){
+      		$elementstoremove=array_keys($todownload,$i,true);
+	  			foreach($elementstoremove as $j){
+					unset($todownload[$j]);
+				}
+		}
+	return $todownload;
+}
+
+//return amazonorderid,sku,qty trios from an array of amazon order ids
+function amazonmws_orderidskuqty_triosfrom_amazonorderids($orderids){
+    //use ($orderids=amazonmws_amazon_orderids_todownload($allorders))
+    
+    //load constants, classes, and functions
+    module_load_include('inc', 'amazonmws', 'amazonmwsphplib/src/MarketplaceWebServiceOrders/Implementations/config');
+
+    //prepare request, receive response
+    $serviceUrl=variable_get("amazonmws_serviceurl");
+    $serviceUrl=$serviceUrl."/Orders/2013-09-01";
+    $config = array (
+        'ServiceURL' => $serviceUrl,
+        'ProxyHost' => null,
+        'ProxyPort' => -1,
+        'ProxyUsername' => null,
+        'ProxyPassword' => null,
+        'MaxErrorRetry' => 3,
+        );
+
+    $service = new MarketplaceWebServiceOrders_Client(
+        AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY,
+        APPLICATION_NAME,
+        APPLICATION_VERSION,
+        $config);
+    $request = new MarketplaceWebServiceOrders_Model_ListOrderItemsRequest();
+    $request->setSellerId(MERCHANT_ID);
+    $idskuqty = array();
+	  if($orderids[0]){
+	    foreach($orderids as $currentorderid){
+		$request->setAmazonOrderId($currentorderid);
+		$response = $service->ListOrderItems($request);
+		
+
+		//use the recommended xml parsing to receive a well formed response
+		$dom = new DOMDocument();
+		$dom->loadXML($response->toXML());
+		$dom->preserveWhiteSpace = false;
+		$dom->formatOutput = true;
+		$xmlstring=$dom->saveXML();
+		$xml = simplexml_load_string($xmlstring);
+		//do json encoding and get an array (not an object) in the expected output format
+		$json = json_encode($xml);
+		$orderarray = json_decode($json,TRUE);
+		//this part has to be modified if an order will contain multiple items
+		$orderitems=$orderarray["ListOrderItemsResult"]["OrderItems"];//["OrderItem"];
+		    foreach($orderitems as $element){
+		        $idskuqty[]=array($currentorderid,$element["SellerSKU"],$element["QuantityOrdered"]);           
+			}
+	    }
+return $idskuqty;
+}
+
+//returns an array of (amazonorderids,sku,qty) trios - so that orders can be created with each. 
+//only orders not registered to the amazonmws_ordersfromamazon table are returned
+function amazonmws_load_idskuqty_trios(){
+	return amazonmws_orderidskuqty_triosfrom_amazonorderids(amazonmws_amazon_orderids_todownload(amazonmws_amazon_orderids_last3days()));
+}
+
+//downloads orders to the amazon orders table - and sets them in state zero
+function amazonmws_usetrios_downloadorderupdates(){
+	$trios =amazonmws_load_idskuqty_trios();
+        foreach($trios as $trio){
+            $mwsupdate=db_insert('amazonmws_ordersfromamazon')
+            ->fields(array(
+            'orderid'=>$trio[0],
+            'sku'=>$trio[1],
+            'qty'=>$trio[2],
+            'onsite' => 0,
+            ))
+            ->execute();
+   }
+}
+
+
+
+//from ubercart sku get nid
+function amazonmws_nidfromsku($sku){
+    	$result = db_query('SELECT u.nid FROM {uc_product_stock} u 
+				WHERE u.sku = :sku LIMIT 1', array(':sku' => $sku));
+	$return=$result->fetchField();
+        return $return;		
+}
+
+//returns array of array(sku,qty,oid,nid) from amazon_mws orders pending - only returns orders that are yet to be processed
+function amazonmws_loadnidqtyoidsku_pending(){
+    	$result = db_query('SELECT a.orderid, a.qty, a.sku FROM {amazonmws_ordersfromamazon} a 
+				WHERE a.onsite = :osi', array(':osi' => 0));
+
+        $return=array();
+        $i=0;
+	    foreach($result as $loaded){
+            $sku=$loaded->sku;
+            $qty=$loaded->qty;
+            $orderid=$loaded->orderid;
+            $nid=amazonmws_nidfromsku($sku);
+            $return[$i]=array();
+            $return[$i]["sku"]=$sku;
+            $return[$i]["qty"]=$qty;
+            $return[$i]["orderid"]=$orderid;
+            $return[$i]["nid"]=$nid;
+
+            $i=$i+1;
+	    }
+	
+return($return);	
+}
+
+//place an order programmatically
+function amazonmws_programmaticorder($nidd,$qtyy,$uidd,$orderidd,$skuu){
+    //new order
+    uc_cart_empty($uidd);
+    $order=uc_order_new($uidd, 'completed');
+    uc_cart_add_item($nidd, $qtyy, NULL, $uidd, FALSE, FALSE, FALSE);
+    $order->products = uc_cart_get_contents($uidd);
+    $order->payment_method = 'other';
+    // Complete the sale
+    uc_order_save($order);
+    uc_cart_complete_sale($order, FALSE);
+    }
+
+//process orders that are pending to be processed in the amazonmws_ordersfromamazon table.
+//processes all orders, even if there are no products in drupal for that order. only places orders for products inside drupal.
+//places orders and assigns them to $uid
+
+function amazonmws_placeordersfromuser($uid){
+    //make sure all new order are processed first
+    $nidqtyoidskuArray=amazonmws_loadnidqtyoidsku_pending();    
+    foreach($nidqtyoidskuArray as $element){
+        //only place the order if there is a matching product inside drupal
+        $nidexists=$element["nid"];
+        $nid=$element["nid"];
+        $qty=$element["qty"];
+        $oid=$element["orderid"];
+        $sku=$element["sku"];
+        echo "$nid and $qty and $oid and $sku";
+        //mark order as processed on amazonmws_ordersfromamazon table for every ordere processed
+                $amazonorderprocessed = db_update('amazonmws_ordersfromamazon')
+  	        ->fields(array(
+    	    'onsite' => 1))
+  	        ->condition('orderid',$oid, '=')
+  	        ->condition('sku',$sku, '=')
+  	        ->execute();
+        //copy order to drupal if theres corresponding products 
+        if($nidexists){
+            amazonmws_programmaticorder($nid,$qty,$uid,$oid,$sku);
+            }        
+        unset($nidexists);
+    }   
+}
+
+/**********************************
+***********************************
+**EXTRA FUNCTION FOR STOCK UPDATE**
+***********************************
+**********************************/
+
+/*Is the sku already in the pending stock updates table?*/
+function amazonmws_IfSkuInStockPending($sku){
+       $result=db_query('SELECT sku FROM {amazonmws_stocks_pending_update} 
+           WHERE sku = :sku', array(':sku' => $sku))
+           ->fetchField();
+      var_dump($result);
+      if($result){
+           return TRUE;
+      }
+      else{
+           return FALSE;
+     }
+}
+
+/**********************************
+***********************************
+*** PUSH SKU INTO STOCK PENDING ***
+***********************************
+**********************************/
+
+/*Put an sku in the stock updates table. Don't call this by itself. Check if the fields exit.*/       
+function amazonmws_SkuToStockPending($sku){ 
+$mwsupdate=db_insert('amazonmws_stocks_pending_update')
+  ->fields(array(
+     'sku' => $sku,
+  ))
+  ->execute();
+}
+
+/*Push an sku into the stock updates table. This can be called just fine.*/ 
+function amazonmws_PushSkuToStockPending($sku){
+    if(!(amazonmws_IfSkuInStockPending($sku))){
+        amazonmws_SkuToStockPending($sku);
+    }
+}
+
+/**********************************
+***********************************
+*** PULL SKU FROM STOCK PENDING ***
+***********************************
+**********************************/
+
+/*Remove an sku from the stock updates table. Don't call this by itself. Check if the fields exit.*/ 
+function amazonmws_SkuRemoveFromStockPending($sku){
+$mwsupdate=db_delete('amazonmws_stocks_pending_update')
+  ->condition('sku', $sku)
+  ->execute();
+}
+
+/*Pull an sku from the stock updates table. This can be called just fine.*/ 
+function amazonmws_PullSkuFromStockPending($sku){
+    if(amazonmws_IfSkuInStockPending($sku)){
+        amazonmws_SkuRemoveFromStockPending($sku);
+    }
+}
+
+/**********************************
+***********************************
+**EXTRA FUNCTION FOR PRICE UPDATE**
+***********************************
+**********************************/
+
+/*Is the sku already in the pending price updates table?*/
+function amazonmws_IfSkuInPricePending($sku){
+       $result=db_query('SELECT sku FROM {amazonmws_prices_pending_update} 
+           WHERE sku = :sku', array(':sku' => $sku))
+           ->fetchField();
+      var_dump($result);
+      if($result){
+           return TRUE;
+      }
+      else{
+           return FALSE;
+     }
+}
+
+/**********************************
+***********************************
+*** PUSH SKU INTO PRICE PENDING ***
+***********************************
+**********************************/
+
+/*Put an sku in the price updates table. Don't call this by itself. Check if the fields exit.*/       
+function amazonmws_SkuToPricePending($sku){ 
+$mwsupdate=db_insert('amazonmws_prices_pending_update')
+  ->fields(array(
+     'sku' => $sku,
+  ))
+  ->execute();
+}
+
+/*Push an sku into the price updates table. This can be called just fine.*/ 
+function amazonmws_PushSkuToPricePending($sku){
+    if(!(amazonmws_IfSkuInPricePending($sku))){
+        amazonmws_SkuToPricePending($sku);
+    }
+}
+
+/**********************************
+***********************************
+*** PULL SKU FROM PRICE PENDING ***
+***********************************
+**********************************/
+
+/*Remove an sku from the price updates table. Don't call this by itself. Check if the fields exit.*/ 
+function amazonmws_SkuRemoveFromPricePending($sku){
+$mwsupdate=db_delete('amazonmws_prices_pending_update')
+  ->condition('sku', $sku)
+  ->execute();
+}
+
+/*Pull an sku from the price updates table. This can be called just fine.*/ 
+function amazonmws_PullSkuFromPricePending($sku){
+    if(amazonmws_IfSkuInPricePending($sku)){
+        amazonmws_SkuRemoveFromPricePending($sku);
+    }
+}
+
+
+/**********************************
+***********************************
+** SEND STOCK UPDATES TO AMAZON ***
+***********************************
+**********************************/
+
+//returns an array of all the skus with pending updates back to amazon
+function amazonmws_skuqtypairs_stockpending(){
+	$result = db_query('SELECT a.sku FROM {amazonmws_stocks_pending_update} a', array(':oids' => 0));
+	$pairs=array();	
+    $i=0;	
+		foreach ($result as $record) {
+                $sku=$record->sku;
+                $nid=amazonmws_nidfromsku($sku);
+                $qtya=db_query('SELECT stock FROM {uc_product_stock}
+                WHERE sku = :sku LIMIT 1', array(':sku' => $sku))->fetchField();
+                $qtya=intval($qtya);
+                $qty=$qtya;
+   		$pairs[$i]["sku"]=$sku;
+                $pairs[$i]["qty"]=$qty;
+                $i=$i+1;
+  				}
+    return $pairs;
+
+
+                $sku=$record->sku;
+                $nid=amazonmws_nidfromsku($sku);
+	
+}
+
+//push updated stocks to amazon from skuqtypairs
+function amazonmws_toamazon_skuqtypairs(){
+    //get an array of (sku,qty) arrays(pairs) 
+    $pairs=amazonmws_skuqtypairs_stockpending();
+    //include the amazon mws library
+    module_load_include('inc', 'amazonmws', 'amazonmwsphplib/src/MarketplaceWebService/Implementations/config');
+ 
+    //prepare request, receive response
+    $serviceUrl=variable_get("amazonmws_serviceurlfeeds");
+    $config = array (
+        'ServiceURL' => $serviceUrl,
+        'ProxyHost' => null,
+        'ProxyPort' => -1,
+        'MaxErrorRetry' => 3,
+        );
+ 
+     $service = new MarketplaceWebService_Client(
+     AWS_ACCESS_KEY_ID, 
+     AWS_SECRET_ACCESS_KEY, 
+     $config,
+     APPLICATION_NAME,
+     APPLICATION_VERSION);
+ 
+    $string="";
+    $i=1;
+    foreach($pairs as $pair){
+	    $sku=$pair["sku"];
+	    $qty=strval($pair["qty"]);
+        if($qty==0){$qty="0";}
+	    $messages="
+		<Message>
+        	<MessageID>$i</MessageID>
+        	<OperationType>Update</OperationType>
+        	<Inventory>
+            	<SKU>$sku</SKU>
+            	<Quantity>$qty</Quantity>
+        	</Inventory>
+    	</Message>";
+        if($qty&&$sku){$string=$string.$messages;}
+	    $string=$string.$messages;
+	    $i=$i+1;
+        }
+    $messages=$string;
+ 
+    $merchantidd=MERCHANT_ID;
+    $feed = <<<EOD
+<?xml version="1.0" encoding="UTF-8"?>
+<AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
+    <Header>
+        <DocumentVersion>1.01</DocumentVersion>
+        <MerchantIdentifier>$merchantidd</MerchantIdentifier>
+    </Header>
+    <MessageType>Inventory</MessageType>
+    $messages
+</AmazonEnvelope>
+EOD;
+ 
+$marketplaceIdArray = array("Id" => array(MARKETPLACE_ID));
+$feedHandle = @fopen('php://temp', 'rw+');
+fwrite($feedHandle, $feed);
+rewind($feedHandle);
+$parameters = array (
+  'Merchant' => MERCHANT_ID,
+  'MarketplaceIdList' => $marketplaceIdArray,
+  'FeedType' => '_POST_INVENTORY_AVAILABILITY_DATA_',
+  'FeedContent' => $feedHandle,
+  'PurgeAndReplace' => false,
+  'ContentMd5' => base64_encode(md5(stream_get_contents($feedHandle), true)),
+//'MWSAuthToken' => 'YOURMWSAuthToken', // Optional
+  );
+ 
+rewind($feedHandle);
+
+$request = new MarketplaceWebService_Model_SubmitFeedRequest($parameters);
+
+if(count($pairs)>0){
+$response = $service->submitFeed($request);
+}
+@fclose($feedHandle);
+    
+}
+
+
+
+
+/**********************************
+***********************************
+** CLEAR LIST OF STOCK UPDATES  ***
+***********************************
+**********************************/
+
+//clear the list of skus with stocks pending to upload
+function amazonmws_truncate_amazonstockspendingupdate(){
+    $result = db_truncate('amazonmws_stocks_pending_update')->execute();
+    }
+
+/**********************************
+***********************************
+** SEND PRICE UPDATES TO AMAZON ***
+***********************************
+**********************************/
+
+//returns an array of all the skus with prices updates back to amazon
+function amazonmws_skupricepairs_pricepending(){
+	$result = db_query('SELECT a.sku FROM {amazonmws_prices_pending_update} a', array(':oids' => 0));
+	$pairs=array();	
+    $i=0;
+		foreach ($result as $record) {
+                $sku=$record->sku;
+                $nid=amazonmws_nidfromsku($sku);
+                $price=db_query('SELECT sell_price FROM {uc_products} WHERE nid = :nid LIMIT 1', array(':nid' => $nid))->fetchField();	
+   				$pairs[$i]["sku"]=$sku;
+                $pairs[$i]["price"]=$price;
+                $i=$i+1;
+  				}
+    return $pairs;
+}
+
+//push updated stocks to amazon from skuqtypairs
+function amazonmws_toamazon_skupricepairs(){
+    //get an array of (sku,price) arrays(pairs) 
+    $pairs=amazonmws_skupricepairs_pricepending();
+
+
+    //include the amazon mws library
+    module_load_include('inc', 'amazonmws', 'amazonmwsphplib/src/MarketplaceWebService/Implementations/config');
+ 
+    //prepare request, receive response
+    $serviceUrl=variable_get("amazonmws_serviceurlfeeds");
+    $config = array (
+        'ServiceURL' => $serviceUrl,
+        'ProxyHost' => null,
+        'ProxyPort' => -1,
+        'MaxErrorRetry' => 3,
+        );
+ 
+     $service = new MarketplaceWebService_Client(
+     AWS_ACCESS_KEY_ID, 
+     AWS_SECRET_ACCESS_KEY, 
+     $config,
+     APPLICATION_NAME,
+     APPLICATION_VERSION);
+ 
+    $string="";
+    $i=1;
+    foreach($pairs as $pair){
+	    $sku=$pair["sku"];
+	    $price=strval($pair["price"]);
+        if($price==0){$price="0";}
+        $price=number_format((float)$price, 2, '.', '');
+	    $messages="
+		<Message>
+        	<MessageID>$i</MessageID>
+        	<Price>
+            	<SKU>$sku</SKU>
+            	<StandardPrice currency=\"GBP\">$price</StandardPrice>
+        	</Price>
+    	</Message>";
+        if($price&&$sku){$string=$string.$messages;}
+	    $i=$i+1;
+        }
+    $messages=$string;
+ 
+    $merchantidd=MERCHANT_ID;
+    $feed = <<<EOD
+<?xml version="1.0" encoding="UTF-8"?>
+<AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
+    <Header>
+        <DocumentVersion>1.01</DocumentVersion>
+        <MerchantIdentifier>$merchantidd</MerchantIdentifier>
+    </Header>
+    <MessageType>Price</MessageType>
+    $messages
+</AmazonEnvelope>
+EOD;
+ 
+$marketplaceIdArray = array("Id" => array(MARKETPLACE_ID));
+$feedHandle = @fopen('php://temp', 'rw+');
+fwrite($feedHandle, $feed);
+rewind($feedHandle);
+$parameters = array (
+  'Merchant' => MERCHANT_ID,
+  'MarketplaceIdList' => $marketplaceIdArray,
+  'FeedType' => '_POST_PRODUCT_PRICING_DATA_',
+  'FeedContent' => $feedHandle,
+  'PurgeAndReplace' => false,
+  'ContentMd5' => base64_encode(md5(stream_get_contents($feedHandle), true)),
+//'MWSAuthToken' => 'YOURMWSAuthToken', // Optional
+  );
+ 
+rewind($feedHandle);
+
+$request = new MarketplaceWebService_Model_SubmitFeedRequest($parameters);
+
+if(count($pairs)>0){
+$response = $service->submitFeed($request);
+}
+@fclose($feedHandle);
+
+}
+
+/**********************************
+***********************************
+** CLEAR LIST OF PRICE UPDATES  ***
+***********************************
+**********************************/
+
+//clear the list of skus with stocks pending to upload
+function amazonmws_truncate_amazonpricespendingupdate(){
+    $result = db_truncate('amazonmws_prices_pending_update')->execute();
+    }
+
+
+/**********************************
+***********************************
+** UPDATE STOCK TO SET QUANTITY ***
+***********************************
+**********************************/
+
+
+
+//get sku from node id
+function amazonmws_skufromnid($nid){
+    	$result = db_query('SELECT u.sku FROM {uc_product_stock} u 
+				WHERE u.nid = :nid LIMIT 1', array(':nid' => $nid));
+	$sku=$result->fetchField();
+        return $sku;		
+}
+
+//update stock to a set quantity
+function amazonmws_setstock_fromnid($nid, $qty) {
+  $sku=amazonmws_skufromnid($nid);
+  $stock = db_query("SELECT active, stock FROM {uc_product_stock} WHERE sku = :sku", array(':sku' => $sku))->fetchObject();
+  db_update('uc_product_stock')
+    ->expression('stock', ':qty', array(':qty' => $qty))
+    ->condition('sku', $sku)
+    ->execute();
+  module_invoke_all('uc_stock_adjusted', $sku, $stock->stock, $qty);
+}
+
+
+/**********************************
+***********************************
+***INCLUDE THE CONFIGURATION FILE**
+***********************************
+**********************************/
+
+/* Load the configuration file for this module - amazonmws.config.inc from the amazonmws module.*/
+module_load_include('inc', 'amazonmws', 'amazonmws.config');

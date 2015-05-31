@@ -1,0 +1,2 @@
+MarketplaceWebService=feeds
+MarketplaceWebServiceOrders=orders

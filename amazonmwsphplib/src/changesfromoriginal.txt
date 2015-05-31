@@ -1,0 +1,3 @@
+Amazon libraries - changes made to source code
+
+Added the Implementations folders inside the libraries, such that code from the Samples folder is implemented in a way specific to Drupal.
