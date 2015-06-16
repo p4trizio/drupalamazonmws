@@ -269,22 +269,27 @@ return $returnarray;
 
 //checks the amazonmws_ordersfromamazon table to see if the orderids have been registered, returns those that are not in the table
 function amazonmws_amazon_orderids_todownload($allorders){
-	//use ($allorders=amazonmws_amazon_orderids_last3days()) to get a list of all recentorders
-	$result = db_query('SELECT a.orderid FROM {amazonmws_ordersfromamazon} a 
-				WHERE a.orderid IN (:oids)', array(':oids' => $allorders));
-	$ordersdownloaded=array();		
-		foreach ($result as $record) {
-   				$ordersdownloaded[]=$record->orderid;
-  				}
-	$todownload=$allorders;
-	$downloaded=$ordersdownloaded;
-		foreach ($downloaded as $i){
-      		$elementstoremove=array_keys($todownload,$i,true);
-	  			foreach($elementstoremove as $j){
-					unset($todownload[$j]);
-				}
-		}
-	return $todownload;
+	if($allorders){
+		//use ($allorders=amazonmws_amazon_orderids_last3days()) to get a list of all recentorders
+		$result = db_query('SELECT a.orderid FROM {amazonmws_ordersfromamazon} a 
+					WHERE a.orderid IN (:oids)', array(':oids' => $allorders));
+		$ordersdownloaded=array();		
+			foreach ($result as $record) {
+	   				$ordersdownloaded[]=$record->orderid;
+	  				}
+		$todownload=$allorders;
+		$downloaded=$ordersdownloaded;
+			foreach ($downloaded as $i){
+	      		$elementstoremove=array_keys($todownload,$i,true);
+		  			foreach($elementstoremove as $j){
+						unset($todownload[$j]);
+					}
+			}
+		return $todownload;
+	}
+	else{
+		return array();
+	}
 }
 
 //return amazonorderid,sku,qty trios from an array of amazon order ids
@@ -315,7 +320,7 @@ function amazonmws_orderidskuqty_triosfrom_amazonorderids($orderids){
     $request = new MarketplaceWebServiceOrders_Model_ListOrderItemsRequest();
     $request->setSellerId(MERCHANT_ID);
     $idskuqty = array();
-	  if($orderids[0]){
+	  if($orderids){
 	    foreach($orderids as $currentorderid){
 		$request->setAmazonOrderId($currentorderid);
 		$response = $service->ListOrderItems($request);
@@ -397,10 +402,13 @@ return($return);
 
 //place an order programmatically
 function amazonmws_programmaticorder($nidd,$qtyy,$uidd,$orderidd,$skuu){
+    $nidd=intval($nidd);
+    $qtyy=intval($qtyy);
+    $uidd=intval($uidd);
     //new order
-    uc_cart_empty($uidd);
+    uc_cart_empty(uc_cart_get_id($uidd));
     $order=uc_order_new($uidd, 'completed');
-    uc_cart_add_item($nidd, $qtyy, NULL, $uidd, FALSE, FALSE, FALSE);
+    uc_cart_add_item($nidd, $qtyy, NULL, uc_cart_get_id($uidd), FALSE, FALSE, TRUE);
     $order->products = uc_cart_get_contents($uidd);
     $order->payment_method = 'other';
     // Complete the sale
@@ -414,27 +422,29 @@ function amazonmws_programmaticorder($nidd,$qtyy,$uidd,$orderidd,$skuu){
 
 function amazonmws_placeordersfromuser($uid){
     //make sure all new order are processed first
-    $nidqtyoidskuArray=amazonmws_loadnidqtyoidsku_pending();    
-    foreach($nidqtyoidskuArray as $element){
-        //only place the order if there is a matching product inside drupal
-        $nidexists=$element["nid"];
-        $nid=$element["nid"];
-        $qty=$element["qty"];
-        $oid=$element["orderid"];
-        $sku=$element["sku"];
-        echo "$nid and $qty and $oid and $sku";
-        //mark order as processed on amazonmws_ordersfromamazon table for every ordere processed
-                $amazonorderprocessed = db_update('amazonmws_ordersfromamazon')
-  	        ->fields(array(
-    	    'onsite' => 1))
-  	        ->condition('orderid',$oid, '=')
-  	        ->condition('sku',$sku, '=')
-  	        ->execute();
-        //copy order to drupal if theres corresponding products 
-        if($nidexists){
-            amazonmws_programmaticorder($nid,$qty,$uid,$oid,$sku);
-            }        
-        unset($nidexists);
+    $nidqtyoidskuArray=amazonmws_loadnidqtyoidsku_pending(); 
+    if($nidqtyoidskuArray){
+	    foreach($nidqtyoidskuArray as $element){
+		//only place the order if there is a matching product inside drupal
+		$nidexists=$element["nid"];
+		$nid=$element["nid"];
+		$qty=$element["qty"];
+		$oid=$element["orderid"];
+		$sku=$element["sku"];
+		echo "$nid and $qty and $oid and $sku";
+		//mark order as processed on amazonmws_ordersfromamazon table for every ordere processed
+		        $amazonorderprocessed = db_update('amazonmws_ordersfromamazon')
+	  	        ->fields(array(
+	    	    'onsite' => 1))
+	  	        ->condition('orderid',$oid, '=')
+	  	        ->condition('sku',$sku, '=')
+	  	        ->execute();
+		//copy order to drupal if theres corresponding products 
+		if($nidexists){
+		    amazonmws_programmaticorder($nid,$qty,$uid,$oid,$sku);
+		    }        
+		unset($nidexists);
+	    }
     }   
 }
 
