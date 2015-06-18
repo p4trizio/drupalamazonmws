@@ -406,9 +406,9 @@ function amazonmws_programmaticorder($nidd,$qtyy,$uidd,$orderidd,$skuu){
     $qtyy=intval($qtyy);
     $uidd=intval($uidd);
     //new order
-    uc_cart_empty(uc_cart_get_id($uidd));
+    uc_cart_empty($uidd);
     $order=uc_order_new($uidd, 'completed');
-    uc_cart_add_item($nidd, $qtyy, NULL, uc_cart_get_id($uidd), FALSE, FALSE, TRUE);
+    uc_cart_add_item($nidd, $qtyy, NULL, $uidd, FALSE, FALSE, TRUE);
     $order->products = uc_cart_get_contents($uidd);
     $order->payment_method = 'other';
     // Complete the sale
@@ -431,7 +431,6 @@ function amazonmws_placeordersfromuser($uid){
 		$qty=$element["qty"];
 		$oid=$element["orderid"];
 		$sku=$element["sku"];
-		echo "$nid and $qty and $oid and $sku";
 		//mark order as processed on amazonmws_ordersfromamazon table for every ordere processed
 		        $amazonorderprocessed = db_update('amazonmws_ordersfromamazon')
 	  	        ->fields(array(
