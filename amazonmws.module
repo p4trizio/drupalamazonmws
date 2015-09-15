@@ -296,6 +296,12 @@ function amazonmws_amazon_orderids_todownload($allorders){
 function amazonmws_orderidskuqty_triosfrom_amazonorderids($orderids){
     //use ($orderids=amazonmws_amazon_orderids_todownload($allorders))
     
+    //when there are no orderids, set $orderids to FALSE
+    $orderids=array_values($orderids);
+    $emptyresult=array(0=>NULL);
+    if($orderids==$emptyresult){
+       $orderids=FALSE;
+    }
     //load constants, classes, and functions
     module_load_include('inc', 'amazonmws', 'amazonmwsphplib/src/MarketplaceWebServiceOrders/Implementations/config');
 
@@ -336,12 +342,21 @@ function amazonmws_orderidskuqty_triosfrom_amazonorderids($orderids){
 		//do json encoding and get an array (not an object) in the expected output format
 		$json = json_encode($xml);
 		$orderarray = json_decode($json,TRUE);
-		//this part has to be modified if an order will contain multiple items
+		//Repeat the next step for orders with multiple items, as well as orders with one item. They have different mappings.
 		$orderitems=$orderarray["ListOrderItemsResult"]["OrderItems"];//["OrderItem"];
 		    foreach($orderitems as $element){
-		        $idskuqty[]=array($currentorderid,$element["SellerSKU"],$element["QuantityOrdered"]);           
+		    		if($element("SellerSKU")){
+		        		$idskuqty[]=array($currentorderid,$element["SellerSKU"],$element["QuantityOrdered"]);
+		        	}
+			}
+		$orderitems=$orderarray["ListOrderItemsResult"]["OrderItems"]["OrderItem"];
+		    foreach($orderitems as $element){
+		    		if($element("SellerSKU")){
+		        		$idskuqty[]=array($currentorderid,$element["SellerSKU"],$element["QuantityOrdered"]);
+		        	}
 			}
 	    }
+	  }
 return $idskuqty;
 }
 
